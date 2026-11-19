@@ -123,6 +123,9 @@ func writeCResponse(response *C.cliproxy_buffer, raw []byte) {
 }
 
 func handlePluginCall(method string, request []byte) ([]byte, int) {
+	if raw, handled := handleGuardCall(method, request); handled {
+		return raw, 0
+	}
 	switch method {
 	case pluginabi.MethodPluginRegister:
 		return handlePluginLifecycle(request), 0
