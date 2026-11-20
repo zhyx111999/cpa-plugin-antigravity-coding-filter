@@ -34,6 +34,49 @@ func TestGuardRegistrationDeclaresLifecycleAndFields(t *testing.T) {
 	}
 }
 
+// Every config field publishes the default the plugin applies when the key is
+// omitted, so management clients show the effective state.
+func TestGuardRegistrationPublishesFieldDefaults(t *testing.T) {
+	setupGuard(t, "")
+	raw, _ := handlePluginCall("plugin.register", nil)
+	var envelope struct {
+		Result struct {
+			Metadata struct {
+				ConfigFields []map[string]any `json:"ConfigFields"`
+			} `json:"metadata"`
+		} `json:"result"`
+	}
+	mustUnmarshalJSON(t, raw, &envelope)
+	got := map[string]string{}
+	for _, field := range envelope.Result.Metadata.ConfigFields {
+		value, err := json.Marshal(field["Default"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		got[field["Name"].(string)] = string(value)
+	}
+	want := map[string]string{
+		"mode":                 `"block"`,
+		"scope":                `["system"]`,
+		"use_default_keywords": `true`,
+		"custom_mappings":      `{}`,
+		"google_guard":         `true`,
+		"learned_rules_file":   `"` + defaultLearnedRulesFile + `"`,
+	}
+	for name, value := range want {
+		if got[name] != value {
+			t.Fatalf("default of %s = %s, want %s (all: %v)", name, got[name], value, got)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("fields = %v, want exactly %v", got, want)
+	}
+	cfg, guard := activeFilterConfig(), activeGuardConfig()
+	if cfg.Mode != filterModeBlock || !cfg.UseDefaultKeywords || cfg.Scope != nil || len(cfg.CustomMappings) != 0 || !guard.Enabled {
+		t.Fatalf("published defaults differ from the applied ones: filter=%+v guard=%+v", cfg, guard)
+	}
+}
+
 func TestGuardSegmentsCoverChatAndGeminiPrompts(t *testing.T) {
 	chat := requestSegments([]byte(`{"messages":[{"role":"system","content":"You are Bot.  Be nice!"},{"role":"user","content":"Hello there\nsecond line"},{"role":"tool","tool_call_id":"c1","content":"tool says hi"}]}`))
 	gemini := requestSegments([]byte(`{"systemInstruction":{"parts":[{"text":"You are Bot."}]},"contents":[{"role":"user","parts":[{"text":"Hello there"}]}]}`))

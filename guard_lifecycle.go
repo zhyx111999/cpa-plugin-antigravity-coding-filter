@@ -51,7 +51,7 @@ func withGuardRegistration(raw []byte) []byte {
 		for _, field := range guardConfigFields() {
 			fields = append(fields, field)
 		}
-		metadata["ConfigFields"] = fields
+		metadata["ConfigFields"] = withConfigFieldDefaults(fields)
 	}
 	return mustEnvelope(registration)
 }
